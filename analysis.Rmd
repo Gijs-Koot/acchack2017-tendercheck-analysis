@@ -1,0 +1,80 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+
+```{r}
+library(dplyr)
+library(lubridate)
+library(ggplot2)
+
+ab <- read.csv("./ab.csv", stringsAsFactors = F) %>% mutate(
+  publicatiedatum = as_date(publicatiedatum)
+)
+
+spl <- read.csv('./spl.csv', stringsAsFactors = F)
+```
+
+```{r}
+splitted <- spl %>% count(aanbesteding_id) %>% transmute(
+  aanbesteding_id, aantal_deelnemers = n, meerdere_deelnemers = n > 1
+)
+```
+
+
+```{r}
+s <- c(0, 10, 20, 50, 100, 1000, 10 * 1000, 100 * 1000, 1000 * 1000, 2000 * 1000) * 1000
+labels <- c("<10k", "10-20k", "20-50k", "50-100k", "100k-1m", "1-10m", "10-100m", "100m-1b", ">1b")
+
+view  <-  ab %>% left_join(splitted) %>% filter(definitieve_waarde > 1000) %>% group_by(
+  def = cut(definitieve_waarde, s, labels=labels),
+  date = round_date(publicatiedatum, "q"),
+  hoofdactiviteit
+) %>% summarize(n = n(), a = sum(meerdere_deelnemers))
+
+g <- ggplot(view, aes(x = date, y = def, fill = ifelse(a  > 0, a / n, NaN))) + geom_tile() + 
+    geom_text(aes(label = paste(a, n, sep = "/")), color = 'white') + 
+    theme(
+      axis.text.x = element_text(angle = 90, hjust = 1)
+  ) + facet_wrap(~forcats::as_factor(hoofdactiviteit), ncol = 3) + labs(
+      y = "Euro's",
+      x = "Kwartaal",
+      fill = "Gesplitst",
+      title = "Gesplitste aanbestedingen",
+      subtitle = "Aantal gesplitst / niet gesplitst, per prijsklasse, per sector"
+    ) + scale_fill_continuous(low = "grey", high = "steelblue", guide=F)
+
+print(g)
+ggsave("./plt.png", width = 20, height = 10, dpi = 120)
+```
+
+```{r}
+s <- c(0, 10, 20, 50, 100, 1000, 10 * 1000, 100 * 1000, 1000 * 1000, 2000 * 1000) * 1000
+labels <- c("<10k", "10-20k", "20-50k", "50-100k", "100k-1m", "1-10m", "10-100m", "100m-1b", ">1b")
+
+view  <-  ab %>% left_join(splitted) %>% filter(definitieve_waarde > 1000) %>% group_by(
+  def = cut(definitieve_waarde, s, labels=labels),
+  date = round_date(publicatiedatum, "y"),
+  hoofdactiviteit
+) %>% summarize(n = n(), a = sum(meerdere_deelnemers))
+
+g <- ggplot(view %>% filter(
+  hoofdactiviteit == "Huisvesting en gemeenschappelijke voorzieningen"
+), aes(x = date, y = def, fill = ifelse(a  > 0, a / n, NaN))) + geom_tile() + 
+    geom_text(aes(label = paste(a, n, sep = "/")), color = 'white') + 
+    theme(
+      axis.text.x = element_text(angle = 90, hjust = 1)
+  ) + facet_wrap(~forcats::as_factor(hoofdactiviteit), ncol = 3) + labs(
+      y = "Euro's",
+      x = "Kwartaal",
+      fill = "Gesplitst",
+      title = "Gesplitste aanbestedingen",
+      subtitle = "Aantal gesplitst / niet gesplitst, per prijsklasse, per sector"
+    ) + scale_fill_continuous(low = "grey", high = "steelblue", guide=F)
+
+print(g)
+ggsave("./plt-small.png")
+```
+
+
